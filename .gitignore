@@ -25,3 +25,4 @@ app/.phpunit.result.cache
 app/composer.lock
 app/yarn.lock
 app/package-lock.json
+/log
