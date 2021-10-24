@@ -1,4 +1,4 @@
-database/
+/database
 app/vendor
 /node_modules/
 app/npm-debug.log
