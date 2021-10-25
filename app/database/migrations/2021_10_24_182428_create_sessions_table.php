@@ -15,6 +15,11 @@ class CreateSessionsTable extends Migration
     {
         Schema::create('sessions', function (Blueprint $table) {
             $table->id();
+            $table->string("fcmToken", 512)->nullable();
+            $table->string("device", 512)->nullable();
+            $table->ipAddress("ip")->nullable();
+            $table->string("refresh_token", 1024)->nullable();
+            $table->timestamp("last_active")->useCurrent();
             $table->timestamps();
         });
     }
