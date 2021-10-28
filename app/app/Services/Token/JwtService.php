@@ -2,6 +2,7 @@
 
 namespace App\Services\Token;
 
+use App\Exceptions\Exceptions;
 use Firebase\JWT\JWT;
 use App\Services\Contracts\TokenInterface;
 
@@ -49,7 +50,14 @@ class JwtService implements TokenInterface {
     }
 
     public function validate($token) {
-        return JWT::decode($token, $this->secret_key, [$this->algorithm]);
+        $payload = null;
+
+        try {
+            $payload = JWT::decode($token, $this->secret_key, [$this->algorithm]);
+        } catch (\UnexpectedValueException $th) {
+            throw new Exceptions(Exceptions::TOKEN_FAILED);
+        }
+        return $payload;
     }
 
     public function generate(array $payload) {
