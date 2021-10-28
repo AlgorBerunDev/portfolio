@@ -1,14 +1,12 @@
 <?php
 namespace App\Services\Session;
 
-use App\Exceptions\Unauthorized;
-use App\Http\Resources\SessionResource;
+use App\Exceptions\Exceptions;
 use App\Services\Contracts\TokenInterface;
 use App\Services\Contracts\SessionInterface;
 use App\Repository\Contracts\SessionRepositoryInterface;
-use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Validation\UnauthorizedException;
+
 
 use function PHPSTORM_META\type;
 
@@ -34,7 +32,7 @@ class SessionService implements SessionInterface {
 
         $jwt = $this->getToken();
         if(!$jwt) {
-            throw new Exception("Not finded authorization token");
+            throw new Exceptions(Exceptions::UNAUTHORIZED);
         }
         $payloadObject = $this->tokenService->decode($jwt);
         return $payloadObject->id;
@@ -64,7 +62,7 @@ class SessionService implements SessionInterface {
 
     public function validate($token = null){
         if(!$token) {
-            if(!$this->getToken()) throw new Unauthorized();
+            if(!$this->getToken()) throw new Exceptions(Exceptions::UNAUTHORIZED);
             return $this->tokenService->validate($this->getToken());
         }
         return $this->tokenService->validate($token);
@@ -72,7 +70,7 @@ class SessionService implements SessionInterface {
 
     public function validateRefreshToken($token = null){
         if(!$token) {
-            if(!$this->getToken()) throw new Unauthorized();
+            if(!$this->getToken()) throw new Exceptions(Exceptions::UNAUTHORIZED);
             return $this->refreshService->validate($this->getToken());
         }
         return $this->refreshService->validate($token);
@@ -114,22 +112,35 @@ class SessionService implements SessionInterface {
 
     public function refresh($token = null){
         if(!$token && !$this->getToken()) {
-            throw new Unauthorized();
+            throw new Exceptions(Exceptions::UNAUTHORIZED);
         }
 
-        $payloadObject = $token? $this->validateRefreshToken($token) : $this->validateRefreshToken();
+        $checkingToken = $token? $token : $this->getToken();
+        $payloadObject = $this->validateRefreshToken($checkingToken);
         $payload = (array) $payloadObject;
+
+        $model = $this->sessionRepository->findById($payload['id']);
+
+        if(!$model) {
+            throw new Exceptions(Exceptions::NOT_FOUND);
+        }
+
+        if($model->refresh_token != $checkingToken) {
+            $this->sessionRepository->deleteById($payload['id']);
+            throw new Exceptions(Exceptions::TOKEN_FAILED);
+        }
+
         $this->access_token =$this->tokenService->generate($payload);
         $this->refresh_token =$this->refreshService->generate($payload);
-        $model = $this->sessionRepository->updateById($payload['id'], [
+        $this->sessionRepository->updateById($payload['id'], [
             'access_token' => $this->access_token,
             'refresh_token' => $this->refresh_token,
         ]);
-        return $model;
+        return $model->fresh();
     }
     public function remove($token = null){
         if(!$token && !$this->getToken()) {
-            throw new Unauthorized();
+            throw new Exceptions(Exceptions::UNAUTHORIZED);
         }
         $payloadObject = $token? $this->validateRefreshToken($token) : $this->validateRefreshToken($this->getToken());
         $result = $this->sessionRepository->deleteById($payloadObject->id);
