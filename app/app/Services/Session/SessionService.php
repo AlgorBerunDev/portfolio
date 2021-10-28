@@ -1,45 +1,157 @@
 <?php
 namespace App\Services\Session;
 
-use App\Contracts\Session\SessionInterface;
-use App\Services\Session\AccessTokenService;
-use App\Services\Session\RefreshTokenService;
+use App\Exceptions\Exceptions;
+use App\Services\Contracts\TokenInterface;
+use App\Services\Contracts\SessionInterface;
+use App\Repository\Contracts\SessionRepositoryInterface;
+use Illuminate\Http\Request;
+
+
+use function PHPSTORM_META\type;
 
 class SessionService implements SessionInterface {
-    private $accessService;
-    private $refreshService;
+    private $tokenService;
+    private $sessionRepository;
+    private $request;
 
-    public function __construct(AccessTokenService $accessService, RefreshTokenService $refreshService)
+    public function __construct(TokenInterface $tokenService, SessionRepositoryInterface $sessionRepository, Request $request)
     {
-        $this->accessService = $accessService;
-        $this->refreshService = $refreshService;
+        $this->tokenService = $tokenService;
+        $this->tokenService->setOptions(['expire' => config("jwt.access_expired")]);
+        $this->refreshService = $tokenService;
+        $this->refreshService->setOptions(['expire' => config("jwt.refresh_expired")]);
+        $this->sessionRepository = $sessionRepository;
+        $this->request = $request;
     }
-    public function decode($token)
-    {
-        return $this->accessService->decode($token);
+    public function getId($token = null) {
+        if($token) {
+            $payloadObject = $this->tokenService->decode($token);
+            return $payloadObject->id;
+        }
+
+        $jwt = $this->getToken();
+        if(!$jwt) {
+            throw new Exceptions(Exceptions::UNAUTHORIZED);
+        }
+        $payloadObject = $this->tokenService->decode($jwt);
+        return $payloadObject->id;
     }
-    public function validateAccess($token)
-    {
-        return $this->accessService->validate($token);
+    public function create() {
+        $attributes = [
+            'device' => $this->request->userAgent(),
+            'ip' => $this->request->ip()
+        ];
+
+        $model = $this->sessionRepository->create($attributes);
+
+        $payload = [
+            'id' => $model->id
+        ];
+
+        $access_token = $this->tokenService->generate($payload);
+        $refresh_token = $this->refreshService->generate($payload);
+
+        $this->sessionRepository->updateById($payload['id'], [
+            'access_token' => $access_token,
+            'refresh_token' => $refresh_token
+        ]);
+
+        return $this->sessionRepository->findById($payload['id']);
     }
-    public function validateRefresh($token)
-    {
+
+    public function validate($token = null){
+        if(!$token) {
+            if(!$this->getToken()) throw new Exceptions(Exceptions::UNAUTHORIZED);
+            return $this->tokenService->validate($this->getToken());
+        }
+        return $this->tokenService->validate($token);
+    }
+
+    public function validateRefreshToken($token = null){
+        if(!$token) {
+            if(!$this->getToken()) throw new Exceptions(Exceptions::UNAUTHORIZED);
+            return $this->refreshService->validate($this->getToken());
+        }
         return $this->refreshService->validate($token);
     }
-    public function refresh($token)
-    {
 
+    public function setFcmToken(string $fcmToken)
+    {
+        $token = $this->getToken();
+        $id = $this->getId($token);
+        return $this->sessionRepository->updateById($id, ['fcmToken' => $fcmToken]);
     }
-    public function removeById($id)
-    {
 
+    public function getFcmToken(int $session_id = null)
+    {
+        $id = $session_id;
+        if(!$id) {
+            $token = $this->getToken();
+            if($token) return null;
+            $id = $this->getId($token);
+        }
+
+        $model = $this->sessionRepository->findById($id, ['fcmToken']);
+        return $model->fcmToken;
     }
-    public function removeByToken($token)
-    {
 
+    public function getToken(): ?string {
+        $bearer = $this->request->header("Authorization");
+        if(!$bearer) return null;
+        $token = $this->splitBearer($bearer);
+        return $token;
     }
-    public function create()
-    {
 
+    protected function splitBearer(string $bearer): string
+    {
+        //TODO: validate for bearer token
+        list($auth_type, $token) = explode(" ", $bearer);
+        return $token;
+    }
+
+    public function refresh($token = null){
+        if(!$token && !$this->getToken()) {
+            throw new Exceptions(Exceptions::UNAUTHORIZED);
+        }
+
+        $checkingToken = $token? $token : $this->getToken();
+        $payloadObject = $this->validateRefreshToken($checkingToken);
+        $payload = (array) $payloadObject;
+
+        $model = $this->sessionRepository->findById($payload['id']);
+
+        if(!$model) {
+            throw new Exceptions(Exceptions::NOT_FOUND);
+        }
+
+        if($model->refresh_token != $checkingToken) {
+            $this->sessionRepository->deleteById($payload['id']);
+            throw new Exceptions(Exceptions::TOKEN_FAILED);
+        }
+
+        $this->access_token =$this->tokenService->generate($payload);
+        $this->refresh_token =$this->refreshService->generate($payload);
+        $this->sessionRepository->updateById($payload['id'], [
+            'access_token' => $this->access_token,
+            'refresh_token' => $this->refresh_token,
+        ]);
+        return $model->fresh();
+    }
+    public function remove($token = null){
+        if(!$token && !$this->getToken()) {
+            throw new Exceptions(Exceptions::UNAUTHORIZED);
+        }
+        $payloadObject = $token? $this->validateRefreshToken($token) : $this->validateRefreshToken($this->getToken());
+        $result = $this->sessionRepository->deleteById($payloadObject->id);
+        return $result;
+    }
+    public function updateById(int $id, array $payload)
+    {
+        return $this->sessionRepository->updateById($id, $payload);
+    }
+    public function updateCurrent(array $payload)
+    {
+        return $this->updateById($this->getId(), $payload);
     }
 }

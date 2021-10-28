@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\SessionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -14,6 +15,12 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+Route::group([
+    'middleware' => 'api',
+    'prefix' => 'session'
+], function ($router) {
+    Route::post('/', [SessionController::class, 'create']);
+    Route::patch('/', [SessionController::class, 'update']);
+    Route::post('/refresh', [SessionController::class, 'refresh']);
+    Route::post('/logout', [SessionController::class, 'logout']);
 });

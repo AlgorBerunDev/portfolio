@@ -13,7 +13,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->bind(\App\Services\Contracts\TokenInterface::class, \App\Services\Token\JwtService::class);
+        $this->app->bind(\App\Services\Contracts\SessionInterface::class, \App\Services\Session\SessionService::class);
     }
 
     /**
