@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\Exceptions;
 use App\Http\Resources\SessionResource;
 use App\Repository\Contracts\SessionRepositoryInterface;
 use App\Services\Contracts\SessionInterface;
-use Illuminate\Http\Request;
-use App\Exceptions\TokenFailed;
-use App\Exceptions\TokenExpired;
 use App\Http\Requests\SessionUpdateRequest;
-use Firebase\JWT\ExpiredException;
-use Firebase\JWT\SignatureInvalidException;
+use Exception;
+use App\Exceptions\RenderableException;
+use App\Http\Resources\SessionUpdateResource;
 
 class SessionController extends Controller
 {
@@ -28,16 +27,27 @@ class SessionController extends Controller
         return new SessionResource($model);
     }
     public function refresh() {
-        $refreshSession = $this->sessionService->refresh();
+        $refreshSession = null;
+        try {
+            $refreshSession = $this->sessionService->refresh();
+
+        } catch (Exception $th) {
+            return response()->json([
+                'message' => $th->getMessage(),
+                'code' => $th->getCode()
+            ],400);
+        }
         return new SessionResource($refreshSession);
     }
     public function logout() {
-        $result = $this->sessionService->remove();
-        return $result;
+        $this->sessionService->remove();
+        return response()->json([
+            'message' => "Successfully logout",
+            'code' => 0
+        ]);
     }
     public function update(SessionUpdateRequest $request) {
-        $result = $this->sessionService->updateCurrent($request->all());
-        return $result;
+        return new SessionUpdateResource($this->sessionService->updateCurrent($request->validated()));
     }
 
 }
