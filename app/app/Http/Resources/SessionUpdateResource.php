@@ -4,7 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class SessionResource extends JsonResource
+class SessionUpdateResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -17,11 +17,9 @@ class SessionResource extends JsonResource
         return [
             'data' => [
                 'id' => $this->id,
-                'fcmToken' => $this->fcmToken,
-                'access_token' => $this->access_token,
-                'refresh_token' => $this->refresh_token,
+                'fcmToken' => $this->fcmToken
             ],
-            'message' => "Session data"
+            'message' => "Successfully request"
         ];
     }
 }
