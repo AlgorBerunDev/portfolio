@@ -18,6 +18,7 @@ class CreateSessionsTable extends Migration
             $table->string("fcmToken", 512)->nullable();
             $table->string("device", 512)->nullable();
             $table->ipAddress("ip")->nullable();
+            $table->string("access_token", 1024)->nullable();
             $table->string("refresh_token", 1024)->nullable();
             $table->timestamp("last_active")->useCurrent();
             $table->timestamps();
