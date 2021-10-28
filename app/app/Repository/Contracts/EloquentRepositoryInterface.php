@@ -48,7 +48,7 @@ interface EloquentRepositoryInterface {
      * @param array $payload
      * @return bool
      */
-    public function updateById(int $modelId, array $payload): bool;
+    public function updateById(int $modelId, array $payload): ?Model;
 
     /**
      * Update existing model.

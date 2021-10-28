@@ -2,6 +2,7 @@
 
 namespace App\Repository\Eloquent;
 
+use App\Exceptions\Exceptions;
 use App\Repository\Contracts\EloquentRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -54,7 +55,7 @@ class BaseRepository implements EloquentRepositoryInterface
         array $appends = []
     ): ?Model
     {
-        return $this->model->findOrFail($modelId);
+        return $this->model->find($modelId);
     }
 
     /**
@@ -79,12 +80,12 @@ class BaseRepository implements EloquentRepositoryInterface
      * @param array $payload
      * @return bool
      */
-    public function updateById(int $modelId, array $payload): bool
+    public function updateById(int $modelId, array $payload): ?Model
     {
-        $result = DB::table($this->model->getTable())
-            ->where('id', $modelId)
-            ->update($payload);
-        return $result>0;
+        if(!empty($payload)) DB::table($this->model->getTable())
+                                ->where('id', $modelId)
+                                ->update($payload);
+        return $this->findById($modelId);
     }
 
     /**
@@ -101,6 +102,7 @@ class BaseRepository implements EloquentRepositoryInterface
         $result = DB::table($this->model->getTable())
             ->where($condition_attributes)
             ->update($payload);
+
         return $result;
     }
 
@@ -112,6 +114,10 @@ class BaseRepository implements EloquentRepositoryInterface
      */
     public function deleteById(int $modelId): bool
     {
-        return $this->findById($modelId)->delete();
+        $model = $this->model->find($modelId);
+        if(!$model) {
+            throw new Exceptions(Exceptions::NOT_FOUND);
+        }
+        return $model->delete();
     }
 }
